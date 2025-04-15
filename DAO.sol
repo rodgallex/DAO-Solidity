@@ -37,7 +37,7 @@ contract VotingToken is ERC20, ERC20Burnable {
         _;
     }
     
-    // Mint únicamente permitido para el contrato de votación (owner)
+    // Función para crear tokens para un usuario. Solo el contrato de votacion (owner) puede llamar a esta función.
     function newtoken(address to, uint amount) external onlyOwner {
         require(totalSupply() + amount <= cap, "Cap maximo excedido");
         _mint(to, amount);
@@ -79,7 +79,7 @@ contract QuadraticVoting {
     address public owner;
     
     // Estados del proceso de votación
-    enum VotingState { NotStarted, Open, Closed }
+    enum VotingState { Open, Closed }
     VotingState public state;
     
     // Instancia del contrato de tokens para la votación
@@ -120,6 +120,7 @@ contract QuadraticVoting {
     }
     
     uint public nextProposalId;
+
     // Almacena las propuestas por su id
     mapping(uint => Proposal) public proposals;
     
@@ -156,14 +157,14 @@ contract QuadraticVoting {
         tokenPrice = _tokenPrice;
         maxTokens = _maxTokens;
         tokensSold = 0;
-        state = VotingState.NotStarted;
+        state = VotingState.Closed;
         // Se despliega el contrato del token. Como se crea desde este constructor,
         // el owner del token será este contrato (lo que permite controlarlo internamente).
         votingToken = new VotingToken(tokenName, tokenSymbol, _maxTokens);
     }
     
     // APERTURA DE LA VOTACION: Solo el owner puede ejecutar openVoting y debe aportar un presupuesto inicial (en Ether)
-    function openVoting() external payable onlyOwner inState(VotingState.NotStarted) {
+    function openVoting() external payable onlyOwner inState(VotingState.Closed) {
         require(msg.value > 0, "Se requiere presupuesto inicial");
         votingBudget = msg.value;
         state = VotingState.Open;
