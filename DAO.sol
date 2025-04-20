@@ -39,7 +39,7 @@ contract VotingToken is ERC20, ERC20Burnable {
     
     // Función para crear tokens para un usuario. Solo el contrato de votacion (owner) puede llamar a esta función.
     function newtoken(address to, uint amount) external onlyOwner {
-        require(totalSupply() + amount <= cap, "Cap maximo excedido");
+        require(totalSupply() + amount <= cap, "Capacidad maxima de tokens excedida");
         _mint(to, amount);
     }
     
@@ -55,8 +55,8 @@ contract VotingToken is ERC20, ERC20Burnable {
    Este contrato gestiona el proceso de votacion on-chain.
    Permite:
    • Abrir la votación con un presupuesto inicial en Ether.
-   • Inscribir participantes que compran tokens (a un precio fijo, tokenPrice).
-   • Permitir que participantes compren tokens adicionales o vendan (recuperando el Ether invertido en tokens NO bloqueados).
+   • Inscribir participantes que compran tokens.
+   • Permitir que participantes compren tokens adicionales o vendan.
    • Registrar propuestas (de financiamiento, si tienen presupuesto > 0; o de "signaling", si son presupuesto 0).
    • Permitir el voto en cada propuesta mediante la función stake, donde el coste es cuadrático:
           cost = (votosNuevosTotales)² - (votosAntiguos)²
@@ -65,25 +65,27 @@ contract VotingToken is ERC20, ERC20Burnable {
      aplicando aritmética de punto fijo) y, en su caso, ejecutar la propuesta de financiamiento,
      transfiriéndole el presupuesto asignado (con un límite de gas de 100000), actualizando el 
      presupuesto (sumando el valor en Ether correspondiente a los tokens usados en la votación).
-   • Permitir cancelar propuestas (por el creador) y retirar votos (recuperando la diferencia de tokens).
+   • Permitir cancelar propuestas y retirar votos.
    • Cerrar la votación: para cancelar todas las propuestas de financiamiento pendientes (devolviendo tokens a 
      los participantes) y ejecutar las propuestas de signaling; finalmente se transfiere el presupuesto no 
      gastado al owner.
    
-   Se incluyen funciones “getter” para los arreglos de propuestas (pendientes, aprobadas y de signaling) y
-   para recuperar la información asociada a cada propuesta.
+   Se incluyen funciones “getter” para acceder a:
+   • Las propuestas pendientes, aprobadas y de signaling.
+   • Información detallada de cada propuesta individual.
+   • Dirección del contrato ERC20 usado como token de voto.
 */
 contract QuadraticVoting {
     
     // Dirección del owner (el mismo que abrió el contrato de votación)
-    address public owner;
+    address private owner;
     
     // Estados del proceso de votación
     enum VotingState { Open, Closed }
     VotingState public state;
     
     // Instancia del contrato de tokens para la votación
-    VotingToken public votingToken;
+    VotingToken private  votingToken;
     
     // Precio del token en wei (se establece en el constructor)
     uint public tokenPrice;
@@ -108,17 +110,18 @@ contract QuadraticVoting {
         address creator;
         string title;
         string description;
-        uint budget;              // Si es mayor que 0, es una propuesta de financiamiento; 0 indica signaling
+        uint budget;                // Si es mayor que 0, es una propuesta de financiamiento; 0 indica signaling
         address executableContract; // Dirección de un contrato que implemente IExecutableProposal
-        uint totalVotes;          // Suma de votos (cada voto incrementa en 1, independientemente del coste)
-        uint totalTokens;         // Suma de tokens consumidos en votos (coste cuadrático total)
+        uint totalVotes;            // Suma de votos (cada voto incrementa en 1, independientemente del coste)
+        uint totalTokens;           // Suma de tokens consumidos en votos (coste cuadrático total)
         bool approved;
         bool canceled;
-        address[] voters;         // Lista de participantes que han votado
-        // Se registra la cantidad de votos de cada participante en esta propuesta
-        mapping(address => uint) votes;
+        address[] voters;           // Lista de participantes que han votado
+        mapping(address => uint) votes;  // Cantidad de votos de cada participante en esta propuesta
+        
     }
     
+    // Siguiente id disponible
     uint public nextProposalId;
 
     // Almacena las propuestas por su id
@@ -343,7 +346,6 @@ contract QuadraticVoting {
     // tal caso, ejecutarla (llamando a executeProposal del contrato externo con un límite de 100000 gas).
     // El umbral se calcula usando:
     //   threshold = (0.2 + (presupuesto_propuesta / votingBudget)) * numParticipantes + numPropuestasPendientes
-    // (Se usan operaciones con escala fija para incluir el 0.2)
     function _checkAndExecuteProposal(uint proposalId) internal {
         Proposal storage prop = proposals[proposalId];
         if (prop.approved || prop.canceled) {
@@ -385,18 +387,19 @@ contract QuadraticVoting {
     // • Se transfiere al owner el presupuesto no gastado
     function closeVoting() external onlyOwner inState(VotingState.Open) {
         // Cancelar las propuestas de financiamiento restantes y reembolsar a los votantes
-        for (uint i = 0; i < pendingFundingProposals.length; i++) {
-            uint proposalId = pendingFundingProposals[i];
+        for (uint i = pendingFundingProposals.length; i > 0; i--) {
+            uint proposalId = pendingFundingProposals[i - 1];
             Proposal storage prop = proposals[proposalId];
             if (!prop.canceled) {
                 prop.canceled = true;
                 refundProposalTokens(proposalId);
+                removeFromArray(pendingFundingProposals, proposalId);
                 emit ProposalCanceled(proposalId);
             }
         }
         // Ejecutar las propuestas de signaling (con presupuesto cero)
-        for (uint i = 0; i < signalingProposals.length; i++) {
-            uint proposalId = signalingProposals[i];
+        for (uint i = signalingProposals.length; i > 0; i--) {
+            uint proposalId = signalingProposals[i - 1];
             Proposal storage prop = proposals[proposalId];
             if (!prop.canceled) {
                 (bool success, ) = prop.executableContract.call{gas: 100000}(
@@ -404,8 +407,11 @@ contract QuadraticVoting {
                 );
                 require(success, "Ejecucion de propuesta signaling fallida");
                 refundProposalTokens(proposalId);
+                prop.approved = true;
+                removeFromArray(signalingProposals, proposalId);
             }
         }
+
         uint remainingBudget = votingBudget;
         votingBudget = 0;
         (bool sent, ) = owner.call{value: remainingBudget}("");
@@ -454,8 +460,14 @@ contract QuadraticVoting {
         Proposal storage prop = proposals[proposalId];
         return (prop.id, prop.creator, prop.title, prop.description, prop.budget, prop.executableContract, prop.totalVotes, prop.totalTokens, prop.approved, prop.canceled);
     }
+
+    // Devuelve la dirección del contrato ERC20 usado para los votos
+    function getERC20() external view returns (address) {
+        return address(votingToken);
+    }
+
     
-    // Función para recibir Ether (por ejemplo, para recibir fondos al comprar tokens)
+    // Función para recibir Ether
     receive() external payable {}
 }
   
