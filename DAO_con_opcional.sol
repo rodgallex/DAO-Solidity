@@ -18,6 +18,7 @@ interface IExecutableProposal {
    su “owner” será automáticamente el contrato de votación, lo que permite que éste ejecute 
    funciones restringidas (mint y burnFromHolder) sin que cualquier usuario pueda manipular los tokens.
 */
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
@@ -369,6 +370,8 @@ contract QuadraticVoting {
         thresholdScaled = thresholdScaled / SCALING;
         // Se añade el número de propuestas pendientes
         uint threshold = thresholdScaled + pendingCount;
+        console.log("umbral:");
+        console.log(threshold);
         if (prop.totalVotes >= threshold && votingBudget >= prop.budget) {
             prop.approved = true;
             removeFromArray(pendingFundingProposals, proposalId);

@@ -379,6 +379,7 @@ contract QuadraticVoting {
             // Los tokens usados en la votacion se consideran consumidos y no pueden devolverse.
         }
     }
+
     
     // CIERRE DE LA VOTACION: Solo el owner puede cerrar la votación.
     // Durante el cierre:
