@@ -459,6 +459,8 @@ contract QuadraticVoting {
         bool canceled
     ) {
         Proposal storage prop = proposals[proposalId];
+        // Se usa el storage que es una única referencia a la pila, en vez de acceder directamente (proposals[proposalId].id)
+        // para evitar el error de call Stack too deep
         return (prop.id, prop.creator, prop.title, prop.description, prop.budget, prop.executableContract, prop.totalVotes, prop.totalTokens, prop.approved, prop.canceled);
     }
 
