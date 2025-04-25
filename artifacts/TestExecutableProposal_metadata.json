@@ -1,6 +1,6 @@
 {
 	"compiler": {
-		"version": "0.8.29+commit.ab55807c"
+		"version": "0.8.26+commit.8a97fa7a"
 	},
 	"language": "Solidity",
 	"output": {
@@ -79,7 +79,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"DAO_con_opcional.sol": "TestExecutableProposal"
+			"DAO.sol": "TestExecutableProposal"
 		},
 		"evmVersion": "cancun",
 		"libraries": {},
@@ -141,12 +141,20 @@
 				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
 			]
 		},
-		"DAO_con_opcional.sol": {
-			"keccak256": "0xf3f2090f2214d31e978bb3786e7c00d64d493659ad408ab7bf6048fdae0da982",
+		"DAO.sol": {
+			"keccak256": "0x0cf394a616d4af2fbb9ae1f2be49fa8ae4b2dc634d6f7698d049f839a5b8229b",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://fb04b2da232c43114bf8fbe6c87c4b93de56c0a84d85a34ac7a057e9e7dff2c3",
-				"dweb:/ipfs/QmS7XK5QWU6fusQSSmWSeoGn1wykTtk6KqxBX5Ef2161Ft"
+				"bzz-raw://bf24f20fcb59316617cca81cb63badafc5094a00523c22855785b4402d0815b6",
+				"dweb:/ipfs/QmXi4vq4cuxsmp8fwgnGebkyvHbTK54RM24ZkSxSYm6Xsx"
+			]
+		},
+		"hardhat/console.sol": {
+			"keccak256": "0xf2560b5386574153057104d19a9e68a32ee912cf23c0c8df1fe9a0607f42d543",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://a63166e036b040826baa513772451a79925daa304b38749100efb089ac07cdc2",
+				"dweb:/ipfs/QmUtMTxUFKU6a5oFXsEJnTPvb3QPb7GDDmSv5yZ1jFHDwR"
 			]
 		}
 	},

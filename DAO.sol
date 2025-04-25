@@ -18,6 +18,7 @@ interface IExecutableProposal {
    su “owner” será automáticamente el contrato de votación, lo que permite que éste ejecute 
    funciones restringidas (mint y burnFromHolder) sin que cualquier usuario pueda manipular los tokens.
 */
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
@@ -82,7 +83,7 @@ contract QuadraticVoting {
     
     // Estados del proceso de votación
     enum VotingState { Open, Closed }
-    VotingState public state;
+    VotingState private state;
     
     // Instancia del contrato de tokens para la votación
     VotingToken private  votingToken;
@@ -90,19 +91,19 @@ contract QuadraticVoting {
     // Precio del token en wei (se establece en el constructor)
     uint public tokenPrice;
     // Máximo de tokens disponibles para la venta (cap del ERC20)
-    uint public maxTokens;
+    uint private maxTokens;
     // Total de tokens vendidos hasta el momento
-    uint public tokensSold;
+    uint private tokensSold;
     
     // Presupuesto total en Ether disponible para financiar propuestas
-    uint public votingBudget;
+    uint private votingBudget;
     
     // Registro de participantes y cuenta de participantes inscritos
-    uint public participantCount;
-    mapping(address => bool) public isParticipant;
+    uint private participantCount;
+    mapping(address => bool) private isParticipant;
     
     // Para controlar los tokens que se han bloqueado por haber votado (no pueden venderse)
-    mapping(address => uint) public lockedTokens;
+    mapping(address => uint) private lockedTokens;
     
     // Estructura de una propuesta
     struct Proposal {
@@ -122,15 +123,15 @@ contract QuadraticVoting {
     }
     
     // Siguiente id disponible
-    uint public nextProposalId;
+    uint private nextProposalId;
 
     // Almacena las propuestas por su id
-    mapping(uint => Proposal) public proposals;
+    mapping(uint => Proposal) private proposals;
     
     // Arreglos para llevar registro de propuestas según su estado y tipo
-    uint[] public pendingFundingProposals;
-    uint[] public approvedFundingProposals;
-    uint[] public signalingProposals;
+    uint[] private pendingFundingProposals;
+    uint[] private approvedFundingProposals;
+    uint[] private signalingProposals;
     
     // Constante para aritmética de punto fijo (para los cálculos de umbral)
     uint constant SCALING = 1e18;
@@ -363,6 +364,8 @@ contract QuadraticVoting {
         thresholdScaled = thresholdScaled / SCALING;
         // Se añade el número de propuestas pendientes
         uint threshold = thresholdScaled + pendingCount;
+        console.log("umbral:");
+        console.log(threshold);
         if (prop.totalVotes >= threshold && votingBudget >= prop.budget) {
             prop.approved = true;
             removeFromArray(pendingFundingProposals, proposalId);
