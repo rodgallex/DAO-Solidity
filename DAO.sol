@@ -200,7 +200,7 @@ contract QuadraticVoting {
         emit ParticipantAdded(msg.sender, tokensToBuy);
     }
     
-    // Permite a un participante ya inscrito comprar tokens adicionales.
+    // FUNCION DE COMPRA DE TOKENS: Permite a un participante ya inscrito comprar tokens adicionales.
     function buyTokens() external payable inState(VotingState.Open) {
         // Requiere que el remitente sea un participante registrado
         require(isParticipant[msg.sender], "No es participante");
@@ -239,7 +239,7 @@ contract QuadraticVoting {
         require(success, "Fallo en la transferencia de Ether");
     }
     
-    // Permite a un participante eliminarse; en esta versión se marca el usuario como no participante.
+    // ELIMINACION DE PARTICIPANTES: Permite a un participante eliminarse; en esta versión se marca el usuario como no participante.
     // (Los tokens que posea no se reembolsan automáticamente).
     function removeParticipant() external inState(VotingState.Open) {
         // Verifica si el participante está registrado.
@@ -372,7 +372,7 @@ contract QuadraticVoting {
         }
     }
     
-    // Permite retirar (deshacer) votos depositados en una propuesta, devolviendo la diferencia en tokens.
+    // RETIRAR VOTOS: Permite retirar (deshacer) votos depositados en una propuesta, devolviendo la diferencia en tokens.
     // Se recalcula el coste: refund = (costo_original - costo_nuevo) = (v^2 - (v - retirados)^2)
     function withdrawFromProposal(uint proposalId, uint votesToWithdraw) external inState(VotingState.Open) {
         // Obtiene la propuesta correspondiente al ID proporcionado.

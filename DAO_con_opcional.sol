@@ -201,7 +201,7 @@ contract QuadraticVoting {
         emit ParticipantAdded(msg.sender, tokensToBuy);
     }
     
-    // Permite a un participante ya inscrito comprar tokens adicionales.
+    // FUNCION DE COMPRA DE TOKENS: Permite a un participante ya inscrito comprar tokens adicionales.
     function buyTokens() external payable inState(VotingState.Open) {
         require(isParticipant[msg.sender], "No es participante");
         require(msg.value >= tokenPrice, "Enviar al menos precio de un token");
@@ -228,7 +228,7 @@ contract QuadraticVoting {
         require(success, "Fallo en la transferencia de Ether");
     }
     
-    // Permite a un participante eliminarse; en esta versión se marca el usuario como no participante.
+    // ELIMINACION DE PARTICIPANTES: Permite a un participante eliminarse; en esta versión se marca el usuario como no participante.
     // (Los tokens que posea no se reembolsan automáticamente).
     function removeParticipant() external inState(VotingState.Open) {
         require(isParticipant[msg.sender], "No es participante");
@@ -262,20 +262,6 @@ contract QuadraticVoting {
         return nextProposalId - 1;
     }
     
-    // CANCELAR PROPUESTA: Modificación en la función cancelProposal para solo cancelar la propuesta
-    function cancelProposal(uint proposalId) external inState(VotingState.Open) {
-        Proposal storage prop = proposals[proposalId];
-        require(msg.sender == prop.creator, "Solo el creador puede cancelar");
-        require(!prop.approved, "Propuesta ya aprobada");
-        require(!prop.canceled, "Propuesta ya cancelada");
-
-        // Marcar la propuesta como cancelada
-        prop.canceled = true;
-
-        // Emitir evento para notificar la cancelación
-        emit ProposalCanceled(proposalId);
-    }
-
     // Nueva función para que los participantes reclamen el reembolso de tokens de una propuesta cancelada
     function claimRefundFromCancelledProposal(uint proposalId) external inState(VotingState.Open) {
         Proposal storage prop = proposals[proposalId];
@@ -336,7 +322,7 @@ contract QuadraticVoting {
         }
     }
     
-    // Permite retirar (deshacer) votos depositados en una propuesta, devolviendo la diferencia en tokens.
+    // RETIRAR VOTOS: Permite retirar (deshacer) votos depositados en una propuesta, devolviendo la diferencia en tokens.
     // Se recalcula el coste: refund = (costo_original - costo_nuevo) = (v^2 - (v - retirados)^2)
     function withdrawFromProposal(uint proposalId, uint votesToWithdraw) external inState(VotingState.Open) {
         Proposal storage prop = proposals[proposalId];
@@ -397,6 +383,23 @@ contract QuadraticVoting {
     }
 
     //PATRON NUEVO APLICADO
+
+    // CANCELAR PROPUESTA: Modificación en la función cancelProposal para solo cancelar la propuesta
+    function cancelProposal(uint proposalId) external inState(VotingState.Open) {
+        Proposal storage prop = proposals[proposalId];
+        require(msg.sender == prop.creator, "Solo el creador puede cancelar");
+        require(!prop.approved, "Propuesta ya aprobada");
+        require(!prop.canceled, "Propuesta ya cancelada");
+
+        // Marcar la propuesta como cancelada
+        prop.canceled = true;
+        if (prop.budget > 0) {
+            removeFromArray(pendingFundingProposals, proposalId);
+        }
+
+        // Emitir evento para notificar la cancelación
+        emit ProposalCanceled(proposalId);
+    }
     
     /*
         CIERRE DE LA VOTACIÓN (PULL-OVER-PUSH): Solo el owner puede cerrar la votación.
@@ -414,7 +417,7 @@ contract QuadraticVoting {
         REINICIO DE LA VOTACIÓN: Solo el owner puede reiniciar la votación.
         Se reinicia el estado a closed para poder volver a abrir otra votacion.
     */
-    function resetVoting() external onlyOwner inState(VotingState.Open) {
+    function resetVoting() external onlyOwner inState(VotingState.ClosedButPending) {
         state = VotingState.Closed;
         emit VotingReset(votingBudget);
     }
@@ -456,6 +459,7 @@ contract QuadraticVoting {
             abi.encodeWithSignature("executeProposal(uint256,uint256,uint256)", prop.id, prop.totalVotes, prop.totalTokens)
         );
         require(success, "Ejecucion fallida");
+        removeFromArray(signalingProposals, proposalId);
     }
 
     
