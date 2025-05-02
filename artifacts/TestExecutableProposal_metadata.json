@@ -142,11 +142,11 @@
 			]
 		},
 		"DAO_con_opcional.sol": {
-			"keccak256": "0x3621d75a68e6a0fd7fe96752d05f67f4e6dbd79f2fbcdf0a8811ceaee15fe0b8",
+			"keccak256": "0xd12c9b09f5f0d3f831dd4065ec113fb4d73c00c95bc1b5232678a9a8b566541f",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://63185cea4b925444338ce99f2c65bf94b92ac29f18f0c6dfd11090a0e2a31432",
-				"dweb:/ipfs/QmXJMB7AtXzYPtkusjptF2sx7kKFYWCHqWbwSTFXUe1DPf"
+				"bzz-raw://fd24299bf2ed4af1f3b7611e7ab246bb647abc91a14c78b3575dd1856d01e320",
+				"dweb:/ipfs/QmPxA78ibkXUs68A9mZRJmRPEzNnkJ5tUK6qKjuGX1g7ZG"
 			]
 		},
 		"hardhat/console.sol": {

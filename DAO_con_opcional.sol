@@ -262,31 +262,6 @@ contract QuadraticVoting {
         return nextProposalId - 1;
     }
     
-    // Nueva función para que los participantes reclamen el reembolso de tokens de una propuesta cancelada
-    function claimRefundFromCancelledProposal(uint proposalId) external inState(VotingState.Open) {
-        Proposal storage prop = proposals[proposalId];
-
-        // Asegurarse de que la propuesta está cancelada y no aprobada
-        require(prop.canceled, "La propuesta no esta cancelada");
-        require(!prop.approved, "La propuesta ya ha sido aprobada");
-        
-        uint votes = prop.votes[msg.sender]; // Obtener los votos del participante en esta propuesta
-        require(votes > 0, "No has votado en esta propuesta");
-
-        uint cost = votes * votes; // Calcular el costo cuadrático de los votos
-
-        // Marcar los votos como reclamados
-        prop.votes[msg.sender] = 0;
-        lockedTokens[msg.sender] -= cost;
-
-        // Realizar la transferencia de los tokens bloqueados de vuelta al votante
-        bool transferred = votingToken.transfer(msg.sender, cost);
-        require(transferred, "Error en la devolucion de tokens");
-
-        // Emitir el evento de reembolso
-        emit TokensRefunded(msg.sender, cost);
-    }
-    
     // STAKE (depositar votos): El participante deposita votos en una propuesta.
     // El coste adicional se calcula como: (votos_nuevos_total² - votos_previos²).
     // Se transfiere la cantidad de tokens correspondiente (previa aprobación del token) y se 
@@ -400,7 +375,8 @@ contract QuadraticVoting {
         // Emitir evento para notificar la cancelación
         emit ProposalCanceled(proposalId);
     }
-    
+
+
     /*
         CIERRE DE LA VOTACIÓN (PULL-OVER-PUSH): Solo el owner puede cerrar la votación.
         En esta versión rediseñada, se establece el estado ClosedButPending para permitir que
@@ -410,6 +386,19 @@ contract QuadraticVoting {
     */
     function closeVoting() external onlyOwner inState(VotingState.Open) {
         state = VotingState.ClosedButPending;
+        for (uint i = pendingFundingProposals.length; i > 0; i--) {
+            uint proposalId = pendingFundingProposals[i - 1];
+            Proposal storage prop = proposals[proposalId];
+
+            // Verifica si la propuesta no ha sido cancelada aún
+            if (!prop.canceled) {
+                prop.canceled = true;
+                // Elimina la propuesta de la lista de propuestas pendientes
+                removeFromArray(pendingFundingProposals, proposalId);
+                // Emite un evento notificando la cancelación de la propuesta
+                emit ProposalCanceled(proposalId);
+            }
+        }
         emit VotingClosed(votingBudget);
     }
 
@@ -424,10 +413,10 @@ contract QuadraticVoting {
 
     /*
         RECLAMAR TOKENS DE VOTACIÓN: Permite a un participante recuperar los tokens utilizados
-        en una propuesta de signaling o en una propuesta cancelada, una vez cerrada la votación.
+        en una propuesta, una vez cerrada la votación.
         Esto sustituye el reembolso automático en closeVoting por una llamada manual (pull).
     */
-    function claimRefund(uint proposalId) external inState(VotingState.ClosedButPending) {
+    function claimRefund(uint proposalId) external {
         Proposal storage prop = proposals[proposalId];
         require(!prop.approved, "Ya ejecutada");
         require(!prop.canceled || prop.budget == 0, "Solo propuestas canceladas o signaling");
