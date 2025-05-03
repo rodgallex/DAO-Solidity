@@ -366,10 +366,12 @@ contract QuadraticVoting {
         require(!prop.approved, "Propuesta ya aprobada");
         require(!prop.canceled, "Propuesta ya cancelada");
 
-        // Marcar la propuesta como cancelada
+        // Marcar la propuesta como cancelada y sacarla del array
         prop.canceled = true;
         if (prop.budget > 0) {
             removeFromArray(pendingFundingProposals, proposalId);
+        }else{
+            removeFromArray(signalingProposals, proposalId);
         }
 
         // Emitir evento para notificar la cancelación
@@ -382,10 +384,10 @@ contract QuadraticVoting {
         En esta versión rediseñada, se establece el estado ClosedButPending para permitir que
         los participantes reclamen manualmente los tokens bloqueados en propuestas canceladas
         o de signaling, y para que las propuestas de signaling sean ejecutadas individualmente.
-        No se recorren arrays internamente, lo que evita problemas de consumo excesivo de gas.
     */
     function closeVoting() external onlyOwner inState(VotingState.Open) {
         state = VotingState.ClosedButPending;
+        //Eliminamos todas las propuestas que no se han llegado a ejecutar
         for (uint i = pendingFundingProposals.length; i > 0; i--) {
             uint proposalId = pendingFundingProposals[i - 1];
             Proposal storage prop = proposals[proposalId];
@@ -399,6 +401,12 @@ contract QuadraticVoting {
                 emit ProposalCanceled(proposalId);
             }
         }
+        // Guarda el presupuesto restante y lo transfiere al owner
+        uint remainingBudget = votingBudget;
+        votingBudget = 0;
+        // Transfiere el presupuesto restante al owner
+        (bool sent, ) = owner.call{value: remainingBudget}("");
+        require(sent, "Fallo en transferencia de Ether al owner");
         emit VotingClosed(votingBudget);
     }
 

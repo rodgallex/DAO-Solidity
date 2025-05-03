@@ -55,7 +55,7 @@ contract VotingToken is ERC20, ERC20Burnable {
    CONTRATO QuadraticVoting
    Este contrato gestiona el proceso de votacion on-chain.
    Permite:
-   • Abrir la votación con un presupuesto inicial en Ether.
+   • Abrir la votación con un presupuesto inicial.
    • Inscribir participantes que compran tokens.
    • Permitir que participantes compren tokens adicionales o vendan.
    • Registrar propuestas (de financiamiento, si tienen presupuesto > 0; o de "signaling", si son presupuesto 0).
@@ -65,7 +65,7 @@ contract VotingToken is ERC20, ERC20Burnable {
           threshold = (0.2 + (presupuesto_i/PresupuestoTotal)) * numParticipantes + numPropuestasPendientes
      aplicando aritmética de punto fijo) y, en su caso, ejecutar la propuesta de financiamiento,
      transfiriéndole el presupuesto asignado (con un límite de gas de 100000), actualizando el 
-     presupuesto (sumando el valor en Ether correspondiente a los tokens usados en la votación).
+     presupuesto (sumando el valor correspondiente a los tokens usados en la votación).
    • Permitir cancelar propuestas y retirar votos.
    • Cerrar la votación: para cancelar todas las propuestas de financiamiento pendientes (devolviendo tokens a 
      los participantes) y ejecutar las propuestas de signaling; finalmente se transfiere el presupuesto no 
@@ -95,7 +95,7 @@ contract QuadraticVoting {
     // Total de tokens vendidos hasta el momento
     uint private tokensSold;
     
-    // Presupuesto total en Ether disponible para financiar propuestas
+    // Presupuesto total disponible para financiar propuestas
     uint private votingBudget;
     
     // Registro de participantes y cuenta de participantes inscritos
@@ -167,7 +167,7 @@ contract QuadraticVoting {
         votingToken = new VotingToken(tokenName, tokenSymbol, _maxTokens);
     }
     
-    // APERTURA DE LA VOTACION: Solo el owner puede ejecutar openVoting y debe aportar un presupuesto inicial (en Ether)
+    // APERTURA DE LA VOTACION: Solo el owner puede ejecutar openVoting y debe aportar un presupuesto inicial
     function openVoting() external payable onlyOwner inState(VotingState.Closed) {
         require(msg.value > 0, "Se requiere presupuesto inicial");
         votingBudget = msg.value;
@@ -175,13 +175,13 @@ contract QuadraticVoting {
         emit VotingOpened(votingBudget);
     }
     
-    // INSCRIPCION DE PARTICIPANTES: Se invoca enviando Ether (al menos tokenPrice) para comprar tokens.
+    // INSCRIPCION DE PARTICIPANTES: Se invoca enviando la cantidad de al menos un tokenPrice para comprar tokens.
     // Si el remitente aún no estaba registrado, se marca como participante.
     // La cantidad de tokens a comprar se calcula dividiendo el Ether enviado por el precio.
     function addParticipant() external payable inState(VotingState.Open) {
-        // Requiere que el participante envíe al menos el valor de un token en Ether
+        // Requiere que el participante envíe al menos el valor de un token
         require(msg.value >= tokenPrice, "Debe enviar al menos el precio de un token");
-        // Calcula cuántos tokens puede comprar el participante con el Ether enviado
+        // Calcula cuántos tokens puede comprar el participante
         uint tokensToBuy = msg.value / tokenPrice;
         // Verifica que no se supere el límite máximo de tokens disponibles
         require(tokensSold + tokensToBuy <= maxTokens, "No hay tokens suficientes disponibles");
@@ -214,14 +214,14 @@ contract QuadraticVoting {
         tokensSold += tokensToBuy;
         // Emite los tokens al participante usando la función del contrato VotingToken
         votingToken.newtoken(msg.sender, tokensToBuy);
-        // Añade el Eibido al presupuesto global de votaciónther rec
+        // Añade el valor al presupuesto global de votación
         votingBudget += msg.value;
         // Emite un evento para indicar que un participante ha comprado tokens adicionales
         emit ParticipantAdded(msg.sender, tokensToBuy);
     }
     
     // FUNCION DE VENTA DE TOKENS: Permite que un participante venda los tokens que no estén bloqueados por votos.
-    // Se quema la cantidad de tokens vendidos y se reembolsa en Ether el importe correspondiente.
+    // Se quema la cantidad de tokens vendidos y se reembolsa el importe correspondiente.
     function sellTokens(uint tokenAmount) external inState(VotingState.Open) {
         // Verifica la cantidad de tokens disponibles para la venta (los tokens bloqueados por votos no cuentan).
         uint available = votingToken.balanceOf(msg.sender) - lockedTokens[msg.sender];
@@ -230,13 +230,13 @@ contract QuadraticVoting {
         tokensSold -= tokenAmount;
         // Quema la cantidad de tokens que el participante está vendiendo. El contrato tiene permisos para hacer esto.
         votingToken.burntoken(msg.sender, tokenAmount);
-        // Calcula el importe en Ether que se va a reembolsar al participante (cantidad de tokens vendida * precio de un token).
+        // Calcula el importe que se va a reembolsar al participante (cantidad de tokens vendida * precio de un token).
         uint refundAmount = tokenAmount * tokenPrice;
         // Verifica que el contrato tenga suficientes fondos para realizar la devolución.
         require(address(this).balance >= refundAmount, "Fondos insuficientes en el contrato");
-        // Realiza la transferencia de Ether al participante.
+        // Realiza la transferencia al participante.
         (bool success, ) = msg.sender.call{value: refundAmount}("");
-        require(success, "Fallo en la transferencia de Ether");
+        require(success, "Fallo en la transferencia");
     }
     
     // ELIMINACION DE PARTICIPANTES: Permite a un participante eliminarse; en esta versión se marca el usuario como no participante.
@@ -300,6 +300,8 @@ contract QuadraticVoting {
         // se elimina del listado de propuestas de financiamiento pendientes.
         if (prop.budget > 0) {
             removeFromArray(pendingFundingProposals, proposalId);
+        }else{
+            removeFromArray(signalingProposals, proposalId);
         }
         // Emite un evento para notificar que la propuesta ha sido cancelada.
         emit ProposalCanceled(proposalId);
@@ -355,7 +357,7 @@ contract QuadraticVoting {
         require(transferred, "Transferencia de tokens fallida");
         // Actualiza el número de tokens bloqueados por el votante
         lockedTokens[msg.sender] += cost;
-        // Si es la primera vez que el participante vota en esta propuesta, se guarda en el arreglo de votantes
+        // Si es la primera vez que el participante vota en esta propuesta, se guarda en el array de votantes
         if (currentVotes == 0) {
             prop.voters.push(msg.sender);
         }
@@ -456,7 +458,7 @@ contract QuadraticVoting {
     // CIERRE DE LA VOTACION: Solo el owner puede cerrar la votación.
     // Durante el cierre:
     // • Se cancelan las propuestas de financiamiento pendientes (reembolsando tokens a los votantes)
-    // • Se ejecutan las propuestas de signaling (aunque no se transfiere Ether)
+    // • Se ejecutan las propuestas de signaling
     // • Se transfiere al owner el presupuesto no gastado
     function closeVoting() external onlyOwner inState(VotingState.Open) {
         // Cancelar las propuestas de financiamiento restantes y reembolsar a los votantes
@@ -498,16 +500,15 @@ contract QuadraticVoting {
                 removeFromArray(signalingProposals, proposalId);
             }
         }
+        // Cambia el estado de la votación a Closed
+        state = VotingState.Closed;
 
         // Guarda el presupuesto restante y lo transfiere al owner
         uint remainingBudget = votingBudget;
         votingBudget = 0;
         // Transfiere el presupuesto restante al owner
         (bool sent, ) = owner.call{value: remainingBudget}("");
-        require(sent, "Fallo en transferencia de Ether al owner");
-
-        // Cambia el estado de la votación a Closed
-        state = VotingState.Closed;
+        require(sent, "Fallo en transferencia al owner");
 
         // Emite un evento notificando el cierre de la votación
         emit VotingClosed(remainingBudget);
