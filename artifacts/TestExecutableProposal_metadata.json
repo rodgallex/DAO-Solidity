@@ -79,7 +79,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"DAO.sol": "TestExecutableProposal"
+			"DAO_con_opcional.sol": "TestExecutableProposal"
 		},
 		"evmVersion": "cancun",
 		"libraries": {},
@@ -141,12 +141,12 @@
 				"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
 			]
 		},
-		"DAO.sol": {
-			"keccak256": "0x91f2166244947a022e0b8eb10e62447fbcbcb6a2a3d3849eb67746a4e20988d4",
+		"DAO_con_opcional.sol": {
+			"keccak256": "0x60119fd1a2acc6cd5b5c75ee5442c7e51efc376adf7f0f1075596b52e66932b1",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://080b35189ba4867672bc567607f4cc137959ae25a2361e1ab09c35386b377158",
-				"dweb:/ipfs/QmUav9ZsCQqzteviSaU7sPJNs5A6RFrfpUhqyXchqdY2oB"
+				"bzz-raw://2f689fe1fe25db027c1ada7606ef3aae57d93279495ab64db92cf3966196d6a1",
+				"dweb:/ipfs/QmQEiydZwT7SAJzKndtc3UEn8awNbq2o7EurnWF9xiH3s8"
 			]
 		},
 		"hardhat/console.sol": {

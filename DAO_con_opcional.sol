@@ -421,13 +421,13 @@ contract QuadraticVoting {
 
     /*
         RECLAMAR TOKENS DE VOTACIÓN: Permite a un participante recuperar los tokens utilizados
-        en una propuesta, una vez cerrada la votación.
+        en una propuesta, una vez cancelada una propuesta o en caso de una signaling si se termino el periodo de votacion.
         Esto sustituye el reembolso automático en closeVoting por una llamada manual (pull).
     */
     function claimRefund(uint proposalId) external {
         Proposal storage prop = proposals[proposalId];
-        require(!prop.approved, "Ya ejecutada");
-        require(!prop.canceled || prop.budget == 0, "Solo propuestas canceladas o signaling");
+        require(!prop.approved || (prop.approved && prop.budget == 0), "Ya ejecutada");
+        require(prop.canceled || (prop.approved && prop.budget == 0), "Solo propuestas canceladas");
 
         uint votes = prop.votes[msg.sender];
         require(votes > 0, "No tienes votos en esta propuesta");
