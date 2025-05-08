@@ -86,6 +86,7 @@ contract QuadraticVoting {
     
     // Dirección del owner (el mismo que abrió el contrato de votación)
     address private owner;
+    uint periodo=0;
     
     // Estados del proceso de votación
     enum VotingState { Open, ClosedButPending, Closed }
@@ -123,9 +124,9 @@ contract QuadraticVoting {
         uint totalTokens;           // Suma de tokens consumidos en votos (coste cuadrático total)
         bool approved;
         bool canceled;
-        address[] voters;           // Lista de participantes que han votado
         mapping(address => uint) votes;  // Cantidad de votos de cada participante en esta propuesta
-        
+        uint indice;
+        uint periodo;
     }
     
     // Siguiente id disponible
@@ -251,11 +252,14 @@ contract QuadraticVoting {
         prop.executableContract = executableContract;
         prop.approved = false;
         prop.canceled = false;
+        prop.periodo= periodo;
         // Se registra la propuesta en el array correspondiente según su tipo
         if (budget > 0) {
             pendingFundingProposals.push(nextProposalId);
+            prop.indice = pendingFundingProposals.length-1;
         } else {
             signalingProposals.push(nextProposalId);
+            prop.indice= signalingProposals.length-1;
         }
         emit ProposalAdded(nextProposalId, title);
         nextProposalId++;
@@ -271,6 +275,7 @@ contract QuadraticVoting {
     function stake(uint proposalId, uint numVotes) external inState(VotingState.Open) {
         require(isParticipant[msg.sender], "No es participante");
         Proposal storage prop = proposals[proposalId];
+        require(periodo == prop.periodo);
         require(!prop.canceled && !prop.approved, "Propuesta no activa");
         uint currentVotes = prop.votes[msg.sender];
         uint newVotes = currentVotes + numVotes;
@@ -283,9 +288,6 @@ contract QuadraticVoting {
         require(transferred, "Transferencia de tokens fallida");
         lockedTokens[msg.sender] += cost;
         // Si es la primera vez que el participante vota en esta propuesta, se guarda en el array
-        if (currentVotes == 0) {
-            prop.voters.push(msg.sender);
-        }
         prop.votes[msg.sender] = newVotes;
         prop.totalVotes += numVotes;
         prop.totalTokens += cost;
@@ -301,6 +303,7 @@ contract QuadraticVoting {
     // Se recalcula el coste: refund = (costo_original - costo_nuevo) = (v^2 - (v - retirados)^2)
     function withdrawFromProposal(uint proposalId, uint votesToWithdraw) external inState(VotingState.Open) {
         Proposal storage prop = proposals[proposalId];
+        require(periodo == prop.periodo);
         require(!prop.approved && !prop.canceled, "Propuesta no activa");
         uint currentVotes = prop.votes[msg.sender];
         require(currentVotes >= votesToWithdraw, "No tiene suficientes votos depositados");
@@ -323,6 +326,7 @@ contract QuadraticVoting {
     //   threshold = (0.2 + (presupuesto_propuesta / votingBudget)) * numParticipantes + numPropuestasPendientes
     function _checkAndExecuteProposal(uint proposalId) internal {
         Proposal storage prop = proposals[proposalId];
+        require(periodo == prop.periodo);
         if (prop.approved || prop.canceled) {
             return;
         }
@@ -342,7 +346,7 @@ contract QuadraticVoting {
         console.log(threshold);
         if (prop.totalVotes >= threshold && votingBudget >= prop.budget) {
             prop.approved = true;
-            removeFromArray(pendingFundingProposals, proposalId);
+            removeFromArray(pendingFundingProposals,prop.indice);
             approvedFundingProposals.push(proposalId);
              votingBudget = votingBudget - prop.budget + (prop.totalTokens * tokenPrice);
             // Llamada al contrato externo para ejecutar la propuesta, con gas limitado a 100000
@@ -362,6 +366,7 @@ contract QuadraticVoting {
     // CANCELAR PROPUESTA: Modificación en la función cancelProposal para solo cancelar la propuesta
     function cancelProposal(uint proposalId) external inState(VotingState.Open) {
         Proposal storage prop = proposals[proposalId];
+        require(periodo == prop.periodo);
         require(msg.sender == prop.creator, "Solo el creador puede cancelar");
         require(!prop.approved, "Propuesta ya aprobada");
         require(!prop.canceled, "Propuesta ya cancelada");
@@ -369,9 +374,9 @@ contract QuadraticVoting {
         // Marcar la propuesta como cancelada y sacarla del array
         prop.canceled = true;
         if (prop.budget > 0) {
-            removeFromArray(pendingFundingProposals, proposalId);
+            removeFromArray(pendingFundingProposals,prop.indice);
         }else{
-            removeFromArray(signalingProposals, proposalId);
+            removeFromArray(signalingProposals,prop.indice);
         }
 
         // Emitir evento para notificar la cancelación
@@ -386,21 +391,8 @@ contract QuadraticVoting {
         o de signaling, y para que las propuestas de signaling sean ejecutadas individualmente.
     */
     function closeVoting() external onlyOwner inState(VotingState.Open) {
-        state = VotingState.ClosedButPending;
-        //Eliminamos todas las propuestas que no se han llegado a ejecutar
-        for (uint i = pendingFundingProposals.length; i > 0; i--) {
-            uint proposalId = pendingFundingProposals[i - 1];
-            Proposal storage prop = proposals[proposalId];
-
-            // Verifica si la propuesta no ha sido cancelada aún
-            if (!prop.canceled) {
-                prop.canceled = true;
-                // Elimina la propuesta de la lista de propuestas pendientes
-                removeFromArray(pendingFundingProposals, proposalId);
-                // Emite un evento notificando la cancelación de la propuesta
-                emit ProposalCanceled(proposalId);
-            }
-        }
+        state = VotingState.Closed;
+        periodo++;
         // Guarda el presupuesto restante y lo transfiere al owner
         uint remainingBudget = votingBudget;
         votingBudget = 0;
@@ -411,23 +403,19 @@ contract QuadraticVoting {
     }
 
     /*
-        REINICIO DE LA VOTACIÓN: Solo el owner puede reiniciar la votación.
-        Se reinicia el estado a closed para poder volver a abrir otra votacion.
-    */
-    function resetVoting() external onlyOwner inState(VotingState.ClosedButPending) {
-        state = VotingState.Closed;
-        emit VotingReset(votingBudget);
-    }
-
-    /*
         RECLAMAR TOKENS DE VOTACIÓN: Permite a un participante recuperar los tokens utilizados
         en una propuesta, una vez cancelada una propuesta o en caso de una signaling si se termino el periodo de votacion.
         Esto sustituye el reembolso automático en closeVoting por una llamada manual (pull).
     */
     function claimRefund(uint proposalId) external {
         Proposal storage prop = proposals[proposalId];
-        require(!prop.approved || (prop.approved && prop.budget == 0), "Ya ejecutada");
-        require(prop.canceled || (prop.approved && prop.budget == 0), "Solo propuestas canceladas");
+        if(prop.budget > 0 && periodo == prop.budget){
+            require(!prop.approved && prop.canceled);
+        }else if(prop.budget > 0 && periodo > prop.budget){
+            require(!prop.approved);
+        }else {
+            require(prop.approved || prop.canceled);
+        }
 
         uint votes = prop.votes[msg.sender];
         require(votes > 0, "No tienes votos en esta propuesta");
@@ -440,35 +428,36 @@ contract QuadraticVoting {
         emit TokensRefunded(msg.sender, cost);
     }
 
+    
+
     /*
         EJECUCIÓN MANUAL DE PROPUESTA DE SIGNALING: Permite ejecutar propuestas de signaling
         una a una, evitando el uso de bucles internos. Cualquier usuario puede activar la ejecución.
         La propuesta debe estar activa y no haber sido ejecutada previamente.
     */
-    function executeSignaling(uint proposalId) external inState(VotingState.ClosedButPending) {
+    function executeSignaling(uint proposalId) external {
         Proposal storage prop = proposals[proposalId];
+        require(periodo > prop.periodo);
         require(prop.budget == 0, "No es signaling");
         require(!prop.canceled, "Propuesta cancelada");
         require(!prop.approved, "Ya ejecutada");
-
         prop.approved = true;
         (bool success, ) = prop.executableContract.call{gas: 100000}(
             abi.encodeWithSignature("executeProposal(uint256,uint256,uint256)", prop.id, prop.totalVotes, prop.totalTokens)
         );
         require(success, "Ejecucion fallida");
-        removeFromArray(signalingProposals, proposalId);
+        removeFromArray(signalingProposals,prop.indice);
     }
 
     
     // Función auxiliar para eliminar un elemento de un array sin mantener el orden
-    function removeFromArray(uint[] storage array, uint value) internal {
-        for (uint i = 0; i < array.length; i++) {
-            if (array[i] == value) {
-                array[i] = array[array.length - 1];
-                array.pop();
-                break;
-            }
+    function removeFromArray(uint[] storage array ,uint indice) internal {
+        uint lastId = array[array.length - 1];
+        if(lastId != (array.length - 1)){
+            array[indice] = lastId;
+            proposals[lastId].indice = indice;
         }
+        array.pop();
     }
     
     // Getters para obtener los arrays de propuestas activos (solo se pueden llamar en estado Open)
