@@ -137,6 +137,7 @@ contract QuadraticVoting {
     
     // Arrays para llevar registro de propuestas según su estado y tipo
     uint[] private pendingFundingProposals;
+    uint[] private canRefundgProposals;
     uint[] private approvedFundingProposals;
     uint[] private signalingProposals;
     
@@ -375,8 +376,12 @@ contract QuadraticVoting {
         prop.canceled = true;
         if (prop.budget > 0) {
             removeFromArray(pendingFundingProposals,prop.indice);
+            canRefundgProposals.push(proposalId);
+            prop.indice = canRefundgProposals.length-1;
         }else{
             removeFromArray(signalingProposals,prop.indice);
+            canRefundgProposals.push(proposalId);
+            prop.indice = canRefundgProposals.length-1;
         }
 
         // Emitir evento para notificar la cancelación
@@ -423,6 +428,10 @@ contract QuadraticVoting {
         uint cost = votes * votes;
         prop.votes[msg.sender] = 0;
         lockedTokens[msg.sender] -= cost;
+        prop.totalTokens -= cost;
+        if(prop.totalTokens == 0){
+            removeFromArray(canRefundgProposals, prop.indice);
+        }
         require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
 
         emit TokensRefunded(msg.sender, cost);
@@ -447,6 +456,9 @@ contract QuadraticVoting {
         );
         require(success, "Ejecucion fallida");
         removeFromArray(signalingProposals,prop.indice);
+        canRefundgProposals.push(proposalId);
+        prop.indice = canRefundgProposals.length-1;
+
     }
 
     
@@ -471,6 +483,10 @@ contract QuadraticVoting {
     
     function getSignalingProposals() external view inState(VotingState.Open) returns (uint[] memory) {
         return signalingProposals;
+    }
+
+    function getcanRefundgProposals() external view inState(VotingState.Open) returns (uint[] memory) {
+        return canRefundgProposals;
     }
     
     // Permite obtener la información detallada de una propuesta (solo si la votación está abierta)
