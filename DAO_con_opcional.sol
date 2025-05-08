@@ -187,7 +187,8 @@ contract QuadraticVoting {
     // Si el remitente aún no estaba registrado, se marca como participante.
     // La cantidad de tokens a comprar se calcula dividiendo el Ether enviado por el precio.
     function addParticipant() external payable inState(VotingState.Open) {
-        require(msg.value >= tokenPrice, "Debe enviar al menos el precio de un token");
+        require(msg.value >= tokenPrice , "Debe enviar al menos el precio de un token");
+        require((msg.value%tokenPrice == 0),"Debe ser multiplo del precio de los tokens para evitar perdidas");
         uint tokensToBuy = msg.value / tokenPrice;
         require(tokensSold + tokensToBuy <= maxTokens, "No hay tokens suficientes disponibles");
         if (!isParticipant[msg.sender]) {
@@ -205,6 +206,7 @@ contract QuadraticVoting {
     function buyTokens() external payable inState(VotingState.Open) {
         require(isParticipant[msg.sender], "No es participante");
         require(msg.value >= tokenPrice, "Enviar al menos precio de un token");
+        require((msg.value%tokenPrice == 0),"Debe ser multiplo del precio de los tokens para evitar perdidas");
         uint tokensToBuy = msg.value / tokenPrice;
         require(tokensSold + tokensToBuy <= maxTokens, "No hay tokens suficientes");
         tokensSold += tokensToBuy;
