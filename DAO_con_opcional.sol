@@ -109,9 +109,6 @@ contract QuadraticVoting {
     uint private participantCount;
     mapping(address => bool) private isParticipant;
     
-    // Para controlar los tokens que se han bloqueado por haber votado (no pueden venderse)
-    mapping(address => uint) private lockedTokens;
-    
     // Estructura de una propuesta
     struct Proposal {
         uint id;
@@ -179,6 +176,8 @@ contract QuadraticVoting {
     // APERTURA DE LA VOTACION: Solo el owner puede ejecutar openVoting y debe aportar un presupuesto inicial (en Ether)
     function openVoting() external payable onlyOwner inState(VotingState.Closed) {
         require(msg.value > 0, "Se requiere presupuesto inicial");
+        delete pendingFundingProposals;
+        delete signalingProposals;
         votingBudget = msg.value;
         state = VotingState.Open;
         emit VotingOpened(votingBudget);
@@ -199,7 +198,6 @@ contract QuadraticVoting {
         // Se emiten (mint) los tokens al participante
         votingToken.newtoken(msg.sender, tokensToBuy);
         // Se añade el monto recibido al presupuesto global para propuestas
-        votingBudget += msg.value;
         emit ParticipantAdded(msg.sender, tokensToBuy);
     }
     
@@ -211,14 +209,13 @@ contract QuadraticVoting {
         require(tokensSold + tokensToBuy <= maxTokens, "No hay tokens suficientes");
         tokensSold += tokensToBuy;
         votingToken.newtoken(msg.sender, tokensToBuy);
-        votingBudget += msg.value;
         emit ParticipantAdded(msg.sender, tokensToBuy);
     }
     
     // FUNCION DE VENTA DE TOKENS: Permite que un participante venda los tokens que no estén bloqueados por votos.
     // Se quema la cantidad de tokens vendidos y se reembolsa en Ether el importe correspondiente.
     function sellTokens(uint tokenAmount) external inState(VotingState.Open) {
-        uint available = votingToken.balanceOf(msg.sender) - lockedTokens[msg.sender];
+        uint available = votingToken.balanceOf(msg.sender);
         require(available >= tokenAmount, "No tiene tokens disponibles para vender");
         tokensSold -= tokenAmount;
         // Se quema la cantidad de tokens del participante. Para ello, el contrato (owner del token)
@@ -282,12 +279,11 @@ contract QuadraticVoting {
         uint newVotes = currentVotes + numVotes;
         // Cálculo del coste adicional (diferencia de cuadrados)
         uint cost = newVotes * newVotes - currentVotes * currentVotes;
-        uint available = votingToken.balanceOf(msg.sender) - lockedTokens[msg.sender];
+        uint available = votingToken.balanceOf(msg.sender);
         require(available >= cost, "No tiene tokens suficientes para votar");
         // Se transfiere la cantidad de tokens desde el votante a este contrato.
         bool transferred = votingToken.transferFrom(msg.sender, address(this), cost);
         require(transferred, "Transferencia de tokens fallida");
-        lockedTokens[msg.sender] += cost;
         // Si es la primera vez que el participante vota en esta propuesta, se guarda en el array
         prop.votes[msg.sender] = newVotes;
         prop.totalVotes += numVotes;
@@ -315,7 +311,6 @@ contract QuadraticVoting {
         prop.votes[msg.sender] = remainingVotes;
         prop.totalVotes -= votesToWithdraw;
         prop.totalTokens -= refundAmount;
-        lockedTokens[msg.sender] -= refundAmount;
         bool transferred = votingToken.transfer(msg.sender, refundAmount);
         require(transferred, "Error en la devolucion de tokens");
         emit TokensRefunded(msg.sender, refundAmount);
@@ -349,7 +344,8 @@ contract QuadraticVoting {
             prop.approved = true;
             removeFromArray(pendingFundingProposals,prop.indice);
             approvedFundingProposals.push(proposalId);
-             votingBudget = votingBudget - prop.budget + (prop.totalTokens * tokenPrice);
+            votingBudget = votingBudget - prop.budget + (prop.totalTokens * tokenPrice);
+            votingToken.burntoken(msg.sender, prop.totalTokens);
             // Llamada al contrato externo para ejecutar la propuesta, con gas limitado a 100000
             (bool success, ) = prop.executableContract.call{value: prop.budget, gas: 100000}(
                 abi.encodeWithSignature("executeProposal(uint256,uint256,uint256)", prop.id, prop.totalVotes, prop.totalTokens)
@@ -416,25 +412,55 @@ contract QuadraticVoting {
         Proposal storage prop = proposals[proposalId];
         if(prop.budget > 0 && periodo == prop.budget){
             require(!prop.approved && prop.canceled);
+            uint votes = prop.votes[msg.sender];
+            require(votes > 0, "No tienes votos en esta propuesta");
+
+            uint cost = votes * votes;
+            prop.votes[msg.sender] = 0;
+            prop.totalTokens -= cost;
+            if(prop.totalTokens == 0){
+                removeFromArray(canRefundgProposals, prop.indice);
+            }
+            require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
+            emit TokensRefunded(msg.sender, cost);
         }else if(prop.budget > 0 && periodo > prop.budget){
             require(!prop.approved);
+            uint votes = prop.votes[msg.sender];
+            require(votes > 0, "No tienes votos en esta propuesta");
+
+            uint cost = votes * votes;
+            prop.votes[msg.sender] = 0;
+            prop.totalTokens -= cost;
+            require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
+            emit TokensRefunded(msg.sender, cost);
         }else {
             require(prop.approved || prop.canceled);
+            if(prop.canceled){
+                require(!prop.approved && prop.canceled);
+                uint votes = prop.votes[msg.sender];
+                require(votes > 0, "No tienes votos en esta propuesta");
+
+                uint cost = votes * votes;
+                prop.votes[msg.sender] = 0;
+                prop.totalTokens -= cost;
+                if(prop.totalTokens == 0){
+                    removeFromArray(canRefundgProposals, prop.indice);
+                }
+                require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
+                emit TokensRefunded(msg.sender, cost);
+            }else{
+                 require(!prop.approved && prop.canceled);
+                uint votes = prop.votes[msg.sender];
+                require(votes > 0, "No tienes votos en esta propuesta");
+
+                uint cost = votes * votes;
+                prop.votes[msg.sender] = 0;
+                prop.totalTokens -= cost;
+                require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
+                emit TokensRefunded(msg.sender, cost);
+            }
         }
-
-        uint votes = prop.votes[msg.sender];
-        require(votes > 0, "No tienes votos en esta propuesta");
-
-        uint cost = votes * votes;
-        prop.votes[msg.sender] = 0;
-        lockedTokens[msg.sender] -= cost;
-        prop.totalTokens -= cost;
-        if(prop.totalTokens == 0){
-            removeFromArray(canRefundgProposals, prop.indice);
-        }
-        require(votingToken.transfer(msg.sender, cost), "Transferencia fallida");
-
-        emit TokensRefunded(msg.sender, cost);
+        
     }
 
     
@@ -455,10 +481,6 @@ contract QuadraticVoting {
             abi.encodeWithSignature("executeProposal(uint256,uint256,uint256)", prop.id, prop.totalVotes, prop.totalTokens)
         );
         require(success, "Ejecucion fallida");
-        removeFromArray(signalingProposals,prop.indice);
-        canRefundgProposals.push(proposalId);
-        prop.indice = canRefundgProposals.length-1;
-
     }
 
     
