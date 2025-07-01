@@ -1,10 +1,10 @@
-# 🗳️ Sistema de Votación DAO en Solidity
+# 🗳️ DAO Voting System in Solidity
 
-Este proyecto consiste en el desarrollo de un sistema de votación descentralizado implementado mediante contratos inteligentes en Solidity. Está inspirado en el modelo de las DAOs (*Decentralized Autonomous Organizations*), permitiendo a los participantes proponer, votar y ejecutar decisiones de forma autónoma y transparente en la blockchain.
+This project consists of developing a decentralized voting system implemented through smart contracts in Solidity. It is inspired by the DAO (*Decentralized Autonomous Organizations*) model, allowing participants to propose, vote, and execute decisions autonomously and transparently on the blockchain.
 
-## ⚙️ Características
+## ⚙️ Features
 
-- Propuesta y registro de iniciativas por miembros autorizados
-- Sistema de votación con mecanismos de control de participación
-- Ejecución automática de resultados según el consenso
-- Transparencia y trazabilidad mediante blockchain
+- Proposal and registration of initiatives by authorized members  
+- Voting system with participation control mechanisms  
+- Automatic execution of results based on consensus  
+- Transparency and traceability through the blockchain  
